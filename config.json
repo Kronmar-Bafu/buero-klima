@@ -1,0 +1,10 @@
+{
+  "title": "Büroklima",
+  "timezone": "Europe/Zurich",
+  "comfort": { "min": 21, "max": 23, "label": "Empfehlung SECO für Büroarbeit" },
+  "workHours": { "days": [1, 2, 3, 4, 5], "from": 8, "to": 17 },
+  "sensors": {
+    "GV5179_3F54": { "label": "Sensor 3F54" },
+    "GV5179_065E": { "label": "Sensor 065E" }
+  }
+}

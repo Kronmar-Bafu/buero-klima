@@ -1,0 +1,9 @@
+[Unit]
+Description=Govee-Verlauf abholen und ins Repo pushen
+After=bluetooth.target network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/buero-klima
+ExecStart=%h/.local/bin/uv run %h/buero-klima/govee_sync.py --push
+TimeoutStartSec=20min

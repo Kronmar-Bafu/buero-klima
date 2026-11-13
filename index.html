@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Büroklima</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="vendor/uPlot.min.css">
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7;
+    --surface: #fcfcfb;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #898781;
+    --grid: #e1e0d9;
+    --axis: #c3c2b7;
+    --border: rgba(11, 11, 11, 0.10);
+    --band: rgba(11, 11, 11, 0.055);
+    --wash: rgba(11, 11, 11, 0.05);
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --series-3: #1baf7a;
+    --series-4: #eda100;
+    --series-5: #e87ba4;
+    --series-6: #008300;
+    --series-7: #6250d6;
+    --series-8: #e34948;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --page: #0d0d0d;
+      --surface: #1a1a19;
+      --text-primary: #f0efec;
+      --text-secondary: #c3c2b7;
+      --text-muted: #898781;
+      --grid: #2c2c2a;
+      --axis: #383835;
+      --border: rgba(255, 255, 255, 0.10);
+      --band: rgba(255, 255, 255, 0.07);
+      --wash: rgba(255, 255, 255, 0.07);
+      --series-1: #3987e5;
+      --series-2: #d95926;
+      --series-3: #199e70;
+      --series-4: #c98500;
+      --series-5: #d55181;
+      --series-6: #008300;
+      --series-7: #9085e9;
+      --series-8: #e66767;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--text-primary);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 1040px; margin: 0 auto; padding: 28px 20px 56px; }
+  h1 { font-size: 1.5rem; margin: 0 0 2px; font-weight: 650; }
+  h2 { font-size: 1rem; margin: 0; font-weight: 600; }
+  .sub { color: var(--text-secondary); margin: 0 0 22px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin-bottom: 16px;
+  }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; margin-bottom: 20px; }
+  .tile { margin: 0; }
+  .tile .name { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); }
+  .tile .hero { font-size: 2.3rem; font-weight: 650; line-height: 1.15; margin: 4px 0 2px; }
+  .tile .meta { color: var(--text-secondary); font-size: 0.9rem; }
+  .key { display: inline-block; width: 16px; height: 0; border-top: 3px solid; border-radius: 2px; flex: none; }
+  .filters { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 14px; }
+  .filters button {
+    font: inherit; color: var(--text-secondary); background: transparent;
+    border: 1px solid var(--border); border-radius: 8px; padding: 5px 12px; cursor: pointer;
+  }
+  .filters button:hover { background: var(--wash); }
+  .filters button[aria-pressed="true"] { background: var(--text-primary); color: var(--surface); border-color: var(--text-primary); }
+  .filters .span { color: var(--text-muted); margin-left: 8px; font-size: 0.9rem; }
+  .cardhead { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 6px 18px; margin-bottom: 8px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--text-secondary); font-size: 0.9rem; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .bandkey { width: 14px; height: 10px; background: var(--band); border: 1px solid var(--border); }
+  .chart { position: relative; }
+  .chart.loading { opacity: 0.45; }
+  .tooltip {
+    position: absolute; pointer-events: none; z-index: 5; display: none;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+    padding: 8px 10px; font-size: 0.85rem; white-space: nowrap;
+  }
+  .tooltip .when { color: var(--text-secondary); margin-bottom: 4px; }
+  .tooltip .row { display: flex; align-items: center; gap: 7px; }
+  .tooltip .val { font-weight: 650; min-width: 4.2em; }
+  .tooltip .lab { color: var(--text-secondary); }
+  table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
+  th, td { text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+  th { color: var(--text-secondary); font-weight: 500; }
+  th:first-child, td:first-child { text-align: left; }
+  tr:last-child td { border-bottom: 0; }
+  td .key { margin-right: 8px; vertical-align: middle; }
+  .note { color: var(--text-secondary); font-size: 0.88rem; margin: 8px 0 0; }
+  details summary { cursor: pointer; font-weight: 600; }
+  .scroll { max-height: 420px; overflow: auto; margin-top: 10px; }
+  .scrollx { overflow-x: auto; }
+  .scrollx th, .scrollx td, .scroll th, .scroll td { white-space: nowrap; }
+  .empty { color: var(--text-secondary); padding: 30px 0; text-align: center; }
+  footer { color: var(--text-muted); font-size: 0.85rem; margin-top: 22px; }
+  .u-legend { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1 id="title">Büroklima</h1>
+  <p class="sub" id="subtitle">Lade Messwerte …</p>
+
+  <section class="tiles" id="tiles"></section>
+
+  <div class="filters" id="filters" role="group" aria-label="Zeitraum">
+    <button data-range="24h">24 Stunden</button>
+    <button data-range="7d">7 Tage</button>
+    <button data-range="30d">30 Tage</button>
+    <button data-range="all">Alles</button>
+    <span class="span" id="span"></span>
+  </div>
+
+  <section class="card">
+    <div class="cardhead"><h2>Temperatur</h2><div class="legend" id="legend-temp"></div></div>
+    <div class="chart" id="chart-temp"></div>
+  </section>
+
+  <section class="card">
+    <div class="cardhead"><h2>Relative Luftfeuchtigkeit</h2><div class="legend" id="legend-hum"></div></div>
+    <div class="chart" id="chart-hum"></div>
+  </section>
+
+  <section class="card">
+    <div class="cardhead"><h2 id="work-title">Während der Arbeitszeit</h2></div>
+    <div id="work" class="scrollx"></div>
+  </section>
+
+  <section class="card">
+    <details>
+      <summary>Tageswerte als Tabelle</summary>
+      <div class="scroll" id="daily"></div>
+    </details>
+  </section>
+
+  <footer id="footer"></footer>
+</main>
+
+<script src="vendor/uPlot.iife.min.js"></script>
+<script>
+"use strict";
+
+// Voreinstellungen. Alles hier laesst sich in config.json ueberschreiben.
+const DEFAULTS = {
+  title: "Büroklima",
+  timezone: "Europe/Zurich",
+  comfort: { min: 21, max: 23, label: "Empfehlung SECO für Büroarbeit" },
+  workHours: { days: [1, 2, 3, 4, 5], from: 8, to: 17 },   // 1 = Montag
+  sensors: {},                                              // { "GV5179_3F54": { "label": "Fensterplatz" } }
+};
+
+const RANGES = {
+  "24h": { seconds: 86400, step: 60 },
+  "7d": { seconds: 7 * 86400, step: 300 },
+  "30d": { seconds: 30 * 86400, step: 1800 },
+  "all": { seconds: Infinity, step: 3600 },
+};
+
+const state = { cfg: DEFAULTS, index: null, sensors: [], files: new Map(), range: "7d", charts: [] };
+const $ = (id) => document.getElementById(id);
+const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const fmt1 = (v) => v.toFixed(1);
+
+function el(tag, attrs = {}, ...children) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") node.className = v;
+    else if (k === "style") node.style.cssText = v;
+    else node.setAttribute(k, v);
+  }
+  for (const c of children) node.append(c);   // Strings werden als Text eingefuegt, nie als HTML
+  return node;
+}
+
+// ---------------------------------------------------------------- Zeitzonen
+let partsFmt, hourCache = new Map();
+const WEEKDAY = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 };
+
+function hourInfo(ts) {
+  const k = Math.floor(ts / 3600);
+  let v = hourCache.get(k);
+  if (!v) {
+    const p = {};
+    for (const part of partsFmt.formatToParts(new Date(k * 3600e3))) p[part.type] = part.value;
+    v = { date: `${p.year}-${p.month}-${p.day}`, hour: +p.hour, wd: WEEKDAY[p.weekday] };
+    hourCache.set(k, v);
+  }
+  return v;
+}
+const dateDe = (key) => `${key.slice(8, 10)}.${key.slice(5, 7)}.${key.slice(0, 4)}`;
+function whenDe(ts, withDate = true) {
+  const d = new Date(ts * 1000);
+  const opts = { timeZone: state.cfg.timezone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" };
+  if (withDate) Object.assign(opts, { weekday: "short", day: "2-digit", month: "2-digit" });
+  return new Intl.DateTimeFormat("de-CH", opts).format(d);
+}
+
+// -------------------------------------------------------------------- Daten
+async function fetchJson(url) {
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(`${url}: ${res.status}`);
+  return res.json();
+}
+
+async function loadFile(sensor, file) {
+  const key = `${sensor}/${file}`;
+  if (state.files.has(key)) return state.files.get(key);
+  const res = await fetch(`data/${encodeURIComponent(sensor)}/${file}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`${key}: ${res.status}`);
+  const lines = (await res.text()).split("\n");
+  const t = [], temp = [], hum = [];
+  for (let i = 1; i < lines.length; i++) {
+    const parts = lines[i].split(",");
+    if (parts.length < 3) continue;
+    const ts = Date.parse(parts[0]) / 1000, a = parseFloat(parts[1]), b = parseFloat(parts[2]);
+    if (Number.isFinite(ts) && Number.isFinite(a) && Number.isFinite(b)) { t.push(ts); temp.push(a); hum.push(b); }
+  }
+  const parsed = { t, temp, hum };
+  state.files.set(key, parsed);
+  return parsed;
+}
+
+// Liefert pro Sensor die Rohwerte im Zeitraum [start, end].
+async function loadRange(start, end) {
+  const out = [];
+  for (const s of state.sensors) {
+    const months = s.files.filter((f) => {
+      const [y, m] = f.slice(0, 7).split("-").map(Number);
+      const first = Date.UTC(y, m - 1, 1) / 1000, next = Date.UTC(y, m, 1) / 1000;
+      return next > start && first <= end;
+    });
+    const parts = await Promise.all(months.map((f) => loadFile(s.id, f)));
+    const t = [], temp = [], hum = [];
+    for (const p of parts) {
+      for (let i = 0; i < p.t.length; i++) {
+        if (p.t[i] >= start && p.t[i] <= end) { t.push(p.t[i]); temp.push(p.temp[i]); hum.push(p.hum[i]); }
+      }
+    }
+    out.push({ sensor: s, t, temp, hum });
+  }
+  return out;
+}
+
+// Mittelwerte auf einem festen Zeitraster. Luecken bleiben null und unterbrechen die Linie.
+function bucketize(raw, start, end, step) {
+  const first = Math.floor(start / step) * step;
+  const n = Math.floor((end - first) / step) + 1;
+  const x = new Array(n);
+  for (let i = 0; i < n; i++) x[i] = first + i * step;
+  const temp = [], hum = [];
+  for (const r of raw) {
+    const st = new Float64Array(n), sh = new Float64Array(n), c = new Uint32Array(n);
+    for (let i = 0; i < r.t.length; i++) {
+      const b = Math.floor((r.t[i] - first) / step);
+      if (b >= 0 && b < n) { st[b] += r.temp[i]; sh[b] += r.hum[i]; c[b]++; }
+    }
+    temp.push(Array.from(c, (k, i) => (k ? st[i] / k : null)));
+    hum.push(Array.from(c, (k, i) => (k ? sh[i] / k : null)));
+  }
+  return { x, temp, hum };
+}
+
+// ------------------------------------------------------------------- Charts
+function axisDates() {
+  return [
+    [3600 * 24 * 365, "{YYYY}", null, null, null, null, null, null, 1],
+    [3600 * 24 * 28, "{MM}.{YYYY}", null, null, null, null, null, null, 1],
+    [3600 * 24, "{DD}.{MM}.", "\n{YYYY}", null, null, null, null, null, 1],
+    [3600, "{HH}:{mm}", "\n{DD}.{MM}.{YY}", null, "\n{DD}.{MM}.", null, null, null, 1],
+    [60, "{HH}:{mm}", "\n{DD}.{MM}.{YY}", null, "\n{DD}.{MM}.", null, null, null, 1],
+    [1, ":{ss}", "\n{DD}.{MM}.{YY} {HH}:{mm}", null, "\n{DD}.{MM}. {HH}:{mm}", null, "\n{HH}:{mm}", null, 1],
+  ];
+}
+
+function makeChart(host, x, series, unit, band) {
+  host.replaceChildren();
+  const tip = el("div", { class: "tooltip" });
+  host.append(tip);
+  const muted = css("--text-muted"), grid = css("--grid"), axis = css("--axis");
+  const font = '12px system-ui, -apple-system, "Segoe UI", sans-serif';
+
+  const opts = {
+    width: host.clientWidth,
+    height: 280,
+    tzDate: (ts) => uPlot.tzDate(new Date(ts * 1e3), state.cfg.timezone),
+    legend: { show: false },
+    cursor: { sync: { key: "klima" }, y: false, drag: { x: false, y: false }, points: { size: 9, width: 2, stroke: css("--surface"), fill: (u, i) => u.series[i]._stroke } },
+    scales: {
+      x: { time: true },
+      y: {
+        range: (u, min, max) => {
+          if (min == null || max == null) { min = band ? band.min : 0; max = band ? band.max : 100; }
+          if (band) { min = Math.min(min, band.min); max = Math.max(max, band.max); }
+          const pad = Math.max((max - min) * 0.08, 0.4);
+          return [Math.floor((min - pad) * 2) / 2, Math.ceil((max + pad) * 2) / 2];
+        },
+      },
+    },
+    axes: [
+      { stroke: muted, font, values: axisDates(), grid: { show: false }, ticks: { stroke: axis, width: 1, size: 5 }, border: { show: true, stroke: axis, width: 1 } },
+      { stroke: muted, font, size: 52, values: (u, vals) => vals.map((v) => `${v} ${unit}`), grid: { stroke: grid, width: 1 }, ticks: { show: false } },
+    ],
+    series: [{}].concat(series.map((s) => ({
+      label: s.label, stroke: s.color, width: 2, spanGaps: false, points: { show: false },
+    }))),
+    hooks: {
+      drawClear: [(u) => {
+        if (!band) return;
+        const { ctx, bbox } = u;
+        const y0 = u.valToPos(band.max, "y", true), y1 = u.valToPos(band.min, "y", true);
+        ctx.save();
+        ctx.fillStyle = css("--band");
+        ctx.fillRect(bbox.left, y0, bbox.width, y1 - y0);
+        ctx.restore();
+      }],
+      setCursor: [(u) => {
+        const i = u.cursor.idx;
+        if (i == null || u.cursor.left < 0 || !host.matches(":hover")) { tip.style.display = "none"; return; }
+        const rows = [];
+        series.forEach((s, k) => {
+          const v = u.data[k + 1][i];
+          if (v == null) return;
+          rows.push(el("div", { class: "row" },
+            el("span", { class: "key", style: `border-color:${s.color}` }),
+            el("span", { class: "val" }, `${fmt1(v)} ${unit}`),
+            el("span", { class: "lab" }, s.label)));
+        });
+        if (!rows.length) { tip.style.display = "none"; return; }
+        tip.replaceChildren(el("div", { class: "when" }, whenDe(u.data[0][i])), ...rows);
+        tip.style.display = "block";
+        const left = u.cursor.left + u.over.offsetLeft;
+        const flip = left + tip.offsetWidth + 24 > host.clientWidth;
+        tip.style.left = `${flip ? left - tip.offsetWidth - 14 : left + 14}px`;
+        tip.style.top = `${u.over.offsetTop + 8}px`;
+      }],
+    },
+  };
+  const plot = new uPlot(opts, [x, ...series.map((s) => s.values)], host);
+  plot.series.forEach((s, i) => { if (i) s._stroke = series[i - 1].color; });
+  host.addEventListener("mouseleave", () => { tip.style.display = "none"; });
+  return plot;
+}
+
+function renderLegend(target, withBand) {
+  target.replaceChildren();
+  if (state.sensors.length > 1) {
+    for (const s of state.sensors) {
+      target.append(el("span", {}, el("span", { class: "key", style: `border-color:${s.color()}` }), s.label));
+    }
+  }
+  if (withBand) {
+    const c = state.cfg.comfort;
+    target.append(el("span", {}, el("span", { class: "bandkey" }), `${c.label}: ${c.min}–${c.max} °C`));
+  }
+}
+
+// --------------------------------------------------------------- Kennzahlen
+function renderTiles() {
+  const host = $("tiles");
+  host.replaceChildren();
+  for (const s of state.sensors) {
+    const tile = el("article", { class: "card tile" });
+    tile.append(el("div", { class: "name" }, el("span", { class: "key", style: `border-color:${s.color()}` }), s.label));
+    if (s.latest) {
+      tile.append(el("div", { class: "hero" }, `${fmt1(s.latest.temp)} °C`));
+      tile.append(el("div", { class: "meta" }, `${fmt1(s.latest.hum)} % rel. Feuchte`));
+      tile.append(el("div", { class: "meta" }, `Messung vom ${whenDe(s.latest.t)}`));
+    } else {
+      tile.append(el("div", { class: "meta" }, "Noch keine Werte"));
+    }
+    if (s.battery != null) tile.append(el("div", { class: "meta" }, `Batterie ${s.battery} %`));
+    host.append(tile);
+  }
+}
+
+function renderWork(raw) {
+  const { workHours: w, comfort: c } = state.cfg;
+  const names = ["", "Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+  const days = w.days.length ? `${names[w.days[0]]}–${names[w.days[w.days.length - 1]]}` : "";
+  const pad = (h) => String(h).padStart(2, "0");
+  $("work-title").textContent = `Während der Arbeitszeit (${days}, ${pad(w.from)}–${pad(w.to)} Uhr)`;
+  const table = el("table");
+  table.append(el("tr", {}, el("th", {}, "Sensor"), el("th", {}, "Stunden mit Daten"), el("th", {}, "Mittel"),
+    el("th", {}, "Tiefstwert"), el("th", {}, `Zeitanteil unter ${c.min} °C`), el("th", {}, `Zeitanteil über ${c.max} °C`)));
+  let any = false;
+  for (const r of raw) {
+    let n = 0, sum = 0, min = Infinity, below = 0, above = 0;
+    for (let i = 0; i < r.t.length; i++) {
+      const h = hourInfo(r.t[i]);
+      if (!w.days.includes(h.wd) || h.hour < w.from || h.hour >= w.to) continue;
+      const v = r.temp[i];
+      n++; sum += v; if (v < min) min = v; if (v < c.min) below++; if (v > c.max) above++;
+    }
+    const cells = n
+      ? [fmt1(n / 60), `${fmt1(sum / n)} °C`, `${fmt1(min)} °C`, `${Math.round(100 * below / n)} %`, `${Math.round(100 * above / n)} %`]
+      : ["0", "–", "–", "–", "–"];
+    if (n) any = true;
+    const first = el("td", {}, el("span", { class: "key", style: `border-color:${r.sensor.color()}` }), r.sensor.label);
+    table.append(el("tr", {}, first, ...cells.map((t) => el("td", {}, t))));
+  }
+  $("work").replaceChildren(table);
+  if (!any) $("work").append(el("p", { class: "note" }, "Im gewählten Zeitraum liegen keine Messwerte innerhalb der Arbeitszeit."));
+}
+
+function renderDaily(raw) {
+  const days = new Map();   // Datum -> pro Sensor [n, summe, min, max]
+  raw.forEach((r, k) => {
+    for (let i = 0; i < r.t.length; i++) {
+      const key = hourInfo(r.t[i]).date;
+      let row = days.get(key);
+      if (!row) { row = raw.map(() => [0, 0, Infinity, -Infinity]); days.set(key, row); }
+      const a = row[k], v = r.temp[i];
+      a[0]++; a[1] += v; if (v < a[2]) a[2] = v; if (v > a[3]) a[3] = v;
+    }
+  });
+  const table = el("table");
+  const head = el("tr", {}, el("th", {}, "Datum"));
+  for (const r of raw) head.append(el("th", {}, `${r.sensor.label}: Min / Mittel / Max (°C)`));
+  table.append(head);
+  for (const key of [...days.keys()].sort().reverse()) {
+    const tr = el("tr", {}, el("td", {}, dateDe(key)));
+    for (const a of days.get(key)) tr.append(el("td", {}, a[0] ? `${fmt1(a[2])} / ${fmt1(a[1] / a[0])} / ${fmt1(a[3])}` : "–"));
+    table.append(tr);
+  }
+  $("daily").replaceChildren(days.size ? table : el("p", { class: "note" }, "Keine Werte im gewählten Zeitraum."));
+}
+
+// ------------------------------------------------------------------ Ablauf
+async function render() {
+  for (const b of $("filters").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.range === state.range));
+  const hosts = [$("chart-temp"), $("chart-hum")];
+  hosts.forEach((h) => h.classList.add("loading"));
+
+  const range = RANGES[state.range];
+  const end = Math.max(...state.sensors.map((s) => s.last));
+  let start = range.seconds === Infinity ? Math.min(...state.sensors.map((s) => s.first)) : end - range.seconds;
+  const raw = await loadRange(start, end);
+  const firstSeen = Math.min(...raw.map((r) => (r.t.length ? r.t[0] : Infinity)));
+  if (Number.isFinite(firstSeen) && firstSeen > start) start = firstSeen;   // nicht mit leerer Flaeche beginnen
+  let step = range.step;
+  while ((end - start) / step > 6000) step *= 2;
+  const b = bucketize(raw, start, end, step);
+
+  state.charts.forEach((c) => c.destroy());
+  const mk = (vals) => state.sensors.map((s, i) => ({ label: s.label, color: s.color(), values: vals[i] }));
+  state.charts = [
+    makeChart(hosts[0], b.x, mk(b.temp), "°C", state.cfg.comfort),
+    makeChart(hosts[1], b.x, mk(b.hum), "%", null),
+  ];
+  hosts.forEach((h) => h.classList.remove("loading"));
+
+  renderLegend($("legend-temp"), true);
+  renderLegend($("legend-hum"), false);
+  $("span").textContent = `${whenDe(start)} bis ${whenDe(end)}` + (step > 60 ? ` · Mittelwerte über ${step / 60} min` : "");
+  renderWork(raw);
+  renderDaily(raw);
+}
+
+async function init() {
+  let cfg = {};
+  try { cfg = await fetchJson("config.json"); } catch (e) { /* optional */ }
+  state.cfg = { ...DEFAULTS, ...cfg, comfort: { ...DEFAULTS.comfort, ...cfg.comfort }, workHours: { ...DEFAULTS.workHours, ...cfg.workHours } };
+  partsFmt = new Intl.DateTimeFormat("en-GB", { timeZone: state.cfg.timezone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", weekday: "short", hourCycle: "h23" });
+  document.title = state.cfg.title;
+  $("title").textContent = state.cfg.title;
+
+  try {
+    state.index = await fetchJson("data/index.json");
+  } catch (e) {
+    $("subtitle").textContent = "Noch keine Messwerte vorhanden. Zuerst govee_sync.py ausführen.";
+    $("filters").hidden = true;
+    return;
+  }
+
+  // Farbe haengt am Sensor, nicht an der Reihenfolge der Daten: zuerst die in
+  // config.json genannten Sensoren in dieser Reihenfolge, danach der Rest alphabetisch.
+  const ids = Object.keys(state.index.sensors || {});
+  const order = Object.keys(state.cfg.sensors || {}).filter((id) => ids.includes(id))
+    .concat(ids.filter((id) => !(id in (state.cfg.sensors || {}))).sort());
+  state.sensors = [];
+  for (const [i, id] of order.slice(0, 8).entries()) {
+    const info = state.index.sensors[id];
+    if (!info.files || !info.files.length) continue;
+    const firstFile = await loadFile(id, info.files[0]);
+    const lastFile = await loadFile(id, info.files[info.files.length - 1]);
+    if (!lastFile.t.length) continue;
+    const n = lastFile.t.length - 1;
+    state.sensors.push({
+      id, files: info.files, battery: info.battery_pct,
+      label: (state.cfg.sensors[id] && state.cfg.sensors[id].label) || id,
+      color: () => css(`--series-${i + 1}`),
+      first: firstFile.t.length ? firstFile.t[0] : lastFile.t[0],
+      last: lastFile.t[n],
+      latest: { t: lastFile.t[n], temp: lastFile.temp[n], hum: lastFile.hum[n] },
+    });
+  }
+  if (!state.sensors.length) {
+    $("subtitle").textContent = "Noch keine Messwerte vorhanden.";
+    $("filters").hidden = true;
+    return;
+  }
+  $("subtitle").textContent = `Letzter Abgleich mit den Sensoren: ${whenDe(Date.parse(state.index.updated) / 1000)}`;
+  $("footer").textContent = "Sensoren: Govee H5179, eine Messung pro Minute, per Bluetooth ausgelesen. " +
+    `Zeiten in ${state.cfg.timezone}. Das graue Band im Temperaturverlauf zeigt ${state.cfg.comfort.min}–${state.cfg.comfort.max} °C.`;
+  renderTiles();
+
+  $("filters").addEventListener("click", (ev) => {
+    const b = ev.target.closest("button[data-range]");
+    if (b && b.dataset.range !== state.range) { state.range = b.dataset.range; render(); }
+  });
+  let timer;
+  new ResizeObserver(() => {
+    clearTimeout(timer);
+    timer = setTimeout(() => state.charts.forEach((c) => c.setSize({ width: c.root.parentElement.clientWidth, height: 280 })), 80);
+  }).observe($("chart-temp"));
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { renderTiles(); render(); });
+  await render();
+}
+
+init().catch((err) => { $("subtitle").textContent = `Fehler beim Laden: ${err.message}`; });
+</script>
+</body>
+</html>
